@@ -6,65 +6,198 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Smart Crop Planner AI", page_icon="🌱", layout="wide")
+st.set_page_config(
+    page_title="Smart Crop Planner AI",
+    page_icon="🌱",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 BASE_DIR = Path(__file__).parent
 MODEL_PATH = BASE_DIR / "Crop_Field_Prediction_RF.pkl"
-DATA_PATHS = [BASE_DIR / "archive (2).zip", BASE_DIR / "crop_dataset.csv", BASE_DIR / "Crop_Field_Prediction.csv"]
+DATA_PATHS = [
+    BASE_DIR / "archive (2).zip",
+    BASE_DIR / "crop_dataset.csv",
+    BASE_DIR / "Crop_Field_Prediction.csv",
+]
 COMPARISON_PATH = BASE_DIR / "model_comparison.csv"
 HISTORY_PATH = BASE_DIR / "prediction_history.csv"
-FEATURES = ["N_SOIL", "P_SOIL", "K_SOIL", "TEMPERATURE", "HUMIDITY", "ph", "RAINFALL"]
+FEATURES = [
+    "N_SOIL", "P_SOIL", "K_SOIL", "TEMPERATURE",
+    "HUMIDITY", "ph", "RAINFALL",
+]
 
-st.markdown("""
-<style>
-.stApp {background:#f5f8f4} .block-container {padding-top:1.5rem;max-width:1250px}
-.hero {padding:25px 30px;border-radius:16px;background:linear-gradient(110deg,#174b32,#2d8050);color:white;margin-bottom:20px}
-.hero h1 {color:white;margin:0 0 6px} .hero p {color:#e7f4e9;margin:0}
-div[data-testid="stMetric"] {background:white;padding:14px;border-radius:12px;border:1px solid #e1e9df}
-</style>
-""", unsafe_allow_html=True)
-st.markdown('<div class="hero"><h1>🌱 Smart Crop Planner AI</h1><p>Explore crop data, review model results, and predict a crop from soil and weather measurements.</p></div>', unsafe_allow_html=True)
+# Consistent, readable styling (including Streamlit's generated widget labels).
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: #f5f8f4;
+        color: #203328;
+    }
+    .block-container {
+        padding-top: 1.5rem;
+        max-width: 1250px;
+    }
+    [data-testid="stSidebar"] {
+        background: #edf4ed;
+    }
+    .hero {
+        padding: 26px 30px;
+        border-radius: 16px;
+        background: linear-gradient(110deg, #174b32, #2d8050);
+        color: white;
+        margin-bottom: 20px;
+    }
+    .hero h1 {
+        color: white !important;
+        margin: 0 0 8px;
+        font-size: 2.2rem;
+    }
+    .hero p {
+        color: #e7f4e9 !important;
+        margin: 0;
+        font-size: 1.05rem;
+    }
+    /* Labels for number inputs, sliders and select boxes */
+    .stNumberInput label,
+    .stSlider label,
+    .stSelectbox label,
+    .stTextInput label {
+        color: #174b32 !important;
+        font-weight: 700 !important;
+    }
+    .stNumberInput label p,
+    .stSlider label p,
+    .stSelectbox label p {
+        color: #174b32 !important;
+    }
+    /* Tabs */
+    .stTabs [data-baseweb="tab"] {
+        color: #174b32 !important;
+        font-weight: 700;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #217a46 !important;
+    }
+    /* Metrics */
+    div[data-testid="stMetric"] {
+        background: white;
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px solid #d7e5d7;
+    }
+    /* Buttons */
+    .stButton button,
+    .stDownloadButton button,
+    [data-testid="stFormSubmitButton"] button {
+        background-color: #217a46;
+        color: white !important;
+        font-weight: 700;
+        border-radius: 10px;
+        border: 1px solid #217a46;
+        padding: 10px 14px;
+    }
+    .stButton button:hover,
+    .stDownloadButton button:hover,
+    [data-testid="stFormSubmitButton"] button:hover {
+        background-color: #174b32;
+        color: white !important;
+        border-color: #174b32;
+    }
+    h2, h3 {
+        color: #174b32;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="hero">
+      <h1>🌱 Smart Crop Planner AI</h1>
+      <p>Explore crop data, review model results, and predict a crop from soil and weather measurements.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_resource
 def load_saved_model():
-    with open(MODEL_PATH, "rb") as f:
-        return pickle.load(f)
+    with open(MODEL_PATH, "rb") as file:
+        return pickle.load(file)
+
 
 @st.cache_data
 def load_dataset(path):
     return pd.read_csv(path)
 
+
 def unpack_model(saved):
     if isinstance(saved, dict):
-        return (saved["model"], saved.get("scaler"), saved.get("needs_scaling", False),
-                list(saved.get("features_cols", FEATURES)))
+        return (
+            saved["model"],
+            saved.get("scaler"),
+            saved.get("needs_scaling", False),
+            list(saved.get("features_cols", FEATURES)),
+        )
     return saved, None, False, FEATURES
+
 
 def make_pdf(report):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
-    story = [Paragraph("Smart Crop Planner AI - Prediction Report", styles["Title"]), Spacer(1, 12),
-             Paragraph(f"Generated: {report['timestamp']}", styles["Normal"]), Spacer(1, 12),
-             Paragraph(f"Predicted crop: <b>{report['prediction']}</b>", styles["Heading2"]), Spacer(1, 10)]
-    rows = [["Input", "Value"]] + [[key, str(value)] for key, value in report["inputs"].items()]
+    story = [
+        Paragraph("Smart Crop Planner AI - Prediction Report", styles["Title"]),
+        Spacer(1, 12),
+        Paragraph(f"Generated: {report['timestamp']}", styles["Normal"]),
+        Spacer(1, 12),
+        Paragraph(f"Predicted crop: <b>{report['prediction']}</b>", styles["Heading2"]),
+        Spacer(1, 10),
+    ]
+    rows = [["Input", "Value"]] + [
+        [key, str(value)] for key, value in report["inputs"].items()
+    ]
     table = Table(rows, colWidths=[220, 220])
-    table.setStyle(TableStyle([("BACKGROUND", (0,0),(-1,0),colors.HexColor("#174b32")),
-                               ("TEXTCOLOR", (0,0),(-1,0),colors.white),
-                               ("GRID", (0,0),(-1,-1),0.5,colors.HexColor("#d5dfd2")),
-                               ("PADDING", (0,0),(-1,-1),8)]))
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#174b32")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d5dfd2")),
+                ("PADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
     story.append(table)
     if report.get("score") is not None:
-        story += [Spacer(1, 12), Paragraph(f"Highest model probability: {report['score']:.1f}% (estimate, not a guarantee).", styles["Normal"])]
-    story += [Spacer(1, 18), Paragraph("Use reliable local agricultural guidance before making real farming decisions.", styles["Italic"])]
+        story += [
+            Spacer(1, 12),
+            Paragraph(
+                f"Highest model probability: {report['score']:.1f}% (estimate, not a guarantee).",
+                styles["Normal"],
+            ),
+        ]
+    story += [
+        Spacer(1, 18),
+        Paragraph(
+            "Use reliable local agricultural guidance before making real farming decisions.",
+            styles["Italic"],
+        ),
+    ]
     doc.build(story)
     return buffer.getvalue()
 
+
 def load_history():
-    """Load previously saved predictions from CSV."""
     if not HISTORY_PATH.exists():
         return []
     try:
@@ -74,12 +207,14 @@ def load_history():
             inputs = {feature: row[feature] for feature in FEATURES if feature in saved.columns}
             score_value = row.get("score", None)
             score = None if pd.isna(score_value) else float(score_value)
-            history.append({
-                "timestamp": str(row["timestamp"]),
-                "prediction": str(row["prediction"]),
-                "inputs": inputs,
-                "score": score,
-            })
+            history.append(
+                {
+                    "timestamp": str(row["timestamp"]),
+                    "prediction": str(row["prediction"]),
+                    "inputs": inputs,
+                    "score": score,
+                }
+            )
         return history
     except Exception as exc:
         st.warning(f"Could not load saved prediction history: {exc}")
@@ -87,7 +222,6 @@ def load_history():
 
 
 def save_history(history):
-    """Save prediction history so it remains available after restarting the app."""
     rows = []
     for item in history:
         row = {
@@ -111,9 +245,12 @@ model = scaler = None
 needs_scaling = False
 features = FEATURES
 model_error = None
+
 try:
     if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Put {MODEL_PATH.name} in the same folder as app.py.")
+        raise FileNotFoundError(
+            f"Put {MODEL_PATH.name} in the same folder as app.py."
+        )
     model, scaler, needs_scaling, features = unpack_model(load_saved_model())
 except Exception as exc:
     model_error = str(exc)
@@ -129,11 +266,20 @@ with st.sidebar:
         st.caption(f"Loaded model: {type(model).__name__}")
     st.caption("Educational project; predictions are estimates.")
 
-tab_predict, tab_data, tab_models, tab_info, tab_history = st.tabs([
-    "🌾 Crop Prediction", "📊 Dataset Analytics", "🧠 Model Comparison", "🌿 Crop Information", "🕘 History"])
+tab_predict, tab_data, tab_models, tab_info, tab_history = st.tabs(
+    [
+        "🌾 Crop Prediction",
+        "📊 Dataset Analytics",
+        "🧠 Model Comparison",
+        "🌿 Crop Information",
+        "🕘 History",
+    ]
+)
 
 with tab_predict:
     st.subheader("Enter field conditions")
+    st.caption("Enter the measured soil and weather values, then select Predict Suitable Crop.")
+
     with st.form("prediction_form"):
         left, right = st.columns(2)
         with left:
@@ -142,52 +288,98 @@ with tab_predict:
             k = st.number_input("Potassium (K)", min_value=0.0, value=40.0, step=1.0)
             temp = st.number_input("Temperature (°C)", value=25.0, step=0.5)
         with right:
-            humidity = st.number_input("Humidity (%)", min_value=0.0, max_value=100.0, value=80.0)
-            ph = st.number_input("Soil pH", min_value=0.0, max_value=14.0, value=7.0, step=0.1)
+            humidity = st.number_input(
+                "Humidity (%)", min_value=0.0, max_value=100.0, value=80.0
+            )
+            ph = st.number_input(
+                "Soil pH", min_value=0.0, max_value=14.0, value=7.0, step=0.1
+            )
             rainfall = st.number_input("Rainfall (mm)", min_value=0.0, value=200.0, step=1.0)
-        predict = st.form_submit_button("🌱 Predict Suitable Crop", use_container_width=True)
+
+        predict = st.form_submit_button(
+            "🌱 Predict Suitable Crop", use_container_width=True
+        )
 
     if predict:
         if model_error:
             st.error("Model loading failed. Check the error in the sidebar.")
         else:
             try:
-                raw = {"N_SOIL": n, "P_SOIL": p, "K_SOIL": k, "TEMPERATURE": temp,
-                       "HUMIDITY": humidity, "ph": ph, "RAINFALL": rainfall}
+                raw = {
+                    "N_SOIL": n,
+                    "P_SOIL": p,
+                    "K_SOIL": k,
+                    "TEMPERATURE": temp,
+                    "HUMIDITY": humidity,
+                    "ph": ph,
+                    "RAINFALL": rainfall,
+                }
                 input_df = pd.DataFrame([raw])[features]
                 if needs_scaling:
                     if scaler is None:
-                        raise ValueError("This saved model requires a scaler, but none was saved.")
+                        raise ValueError(
+                            "This saved model requires a scaler, but none was saved."
+                        )
                     model_input = scaler.transform(input_df)
                 else:
                     model_input = input_df
+
                 prediction = str(model.predict(model_input)[0])
-                score = float(max(model.predict_proba(model_input)[0]) * 100) if hasattr(model, "predict_proba") else None
-                report = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "prediction": prediction,
-                          "inputs": raw, "score": score}
+                score = (
+                    float(max(model.predict_proba(model_input)[0]) * 100)
+                    if hasattr(model, "predict_proba")
+                    else None
+                )
+                report = {
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "prediction": prediction,
+                    "inputs": raw,
+                    "score": score,
+                }
                 st.session_state.last_report = report
                 st.session_state.history.insert(0, report)
                 st.session_state.history = st.session_state.history[:100]
                 save_history(st.session_state.history)
+
                 st.success(f"Predicted crop: {prediction}")
                 a, b, c = st.columns(3)
                 a.metric("Predicted crop", prediction)
                 b.metric("Input features", len(raw))
-                c.metric("Top model score", f"{score:.1f}%" if score is not None else "Not available")
-                st.caption("Model scores are estimates, not guarantees of real-world crop suitability.")
+                c.metric(
+                    "Top model score",
+                    f"{score:.1f}%" if score is not None else "Not available",
+                )
+                st.caption(
+                    "Model scores are estimates, not guarantees of real-world crop suitability."
+                )
+
                 if hasattr(model, "predict_proba"):
-                    pairs = sorted(zip(model.classes_, model.predict_proba(model_input)[0]), key=lambda x: x[1], reverse=True)[:3]
-                    chart = pd.DataFrame(pairs, columns=["Crop", "Probability"]).set_index("Crop") * 100
+                    pairs = sorted(
+                        zip(model.classes_, model.predict_proba(model_input)[0]),
+                        key=lambda item: item[1],
+                        reverse=True,
+                    )[:3]
+                    chart = (
+                        pd.DataFrame(pairs, columns=["Crop", "Probability"])
+                        .set_index("Crop")
+                        * 100
+                    )
                     st.subheader("Top 3 model predictions")
                     st.bar_chart(chart)
             except Exception as exc:
                 st.error(f"Prediction failed: {exc}")
-                st.caption("Check that the saved model uses these seven features and the same preprocessing as training.")
+                st.caption(
+                    "Check that the saved model uses these seven features and the same preprocessing as training."
+                )
 
     if st.session_state.last_report:
         try:
-            st.download_button("📄 Download prediction report (PDF)", data=make_pdf(st.session_state.last_report),
-                               file_name="crop_prediction_report.pdf", mime="application/pdf")
+            st.download_button(
+                "📄 Download prediction report (PDF)",
+                data=make_pdf(st.session_state.last_report),
+                file_name="crop_prediction_report.pdf",
+                mime="application/pdf",
+            )
         except ImportError:
             st.warning("Install PDF support with: python -m pip install reportlab")
 
@@ -195,7 +387,9 @@ with tab_data:
     st.subheader("Dataset Analytics")
     data_path = next((path for path in DATA_PATHS if path.exists()), None)
     if data_path is None:
-        st.info("To enable analytics, copy archive (2).zip or a CSV dataset into the same folder as app.py.")
+        st.info(
+            "To enable analytics, copy archive (2).zip or a CSV dataset into the same folder as app.py."
+        )
     else:
         try:
             data = load_dataset(str(data_path))
@@ -210,7 +404,9 @@ with tab_data:
                 st.bar_chart(data["CROP"].value_counts().sort_values(ascending=False))
             if "CROP_PRICE" in data and "CROP" in data:
                 st.subheader("Average crop price in dataset")
-                st.bar_chart(data.groupby("CROP")["CROP_PRICE"].mean().sort_values(ascending=False))
+                st.bar_chart(
+                    data.groupby("CROP")["CROP_PRICE"].mean().sort_values(ascending=False)
+                )
         except Exception as exc:
             st.warning(f"Could not read dataset: {exc}. A ZIP should contain a readable CSV.")
 
@@ -223,18 +419,33 @@ with tab_models:
             if {"Model", "Accuracy"}.issubset(comparison.columns):
                 st.bar_chart(comparison.set_index("Model")[["Accuracy"]])
                 best = comparison.loc[comparison["Accuracy"].idxmax()]
-                st.success(f"Highest listed accuracy: {best['Model']} ({best['Accuracy']:.3f})")
+                st.success(
+                    f"Highest listed accuracy: {best['Model']} ({best['Accuracy']:.3f})"
+                )
             else:
                 st.warning("CSV must have columns named Model and Accuracy.")
         except Exception as exc:
             st.warning(f"Could not read model_comparison.csv: {exc}")
     else:
-        st.info("Export your notebook's model comparison into model_comparison.csv to show the chart here.")
-        st.code('comparison_df = pd.DataFrame(results, columns=["Model", "Accuracy"])\ncomparison_df.to_csv("model_comparison.csv", index=False)', language="python")
-        st.caption("Run this in the notebook after your comparison code creates the results variable.")
+        st.info(
+            "Export your notebook's model comparison into model_comparison.csv to show the chart here."
+        )
+        st.code(
+            'comparison_df = pd.DataFrame(results, columns=["Model", "Accuracy"])\\n'
+            'comparison_df.to_csv("model_comparison.csv", index=False)',
+            language="python",
+        )
+        st.caption(
+            "Run this in the notebook after your comparison code creates the results variable."
+        )
+
     if model is not None and hasattr(model, "feature_importances_"):
         st.subheader("Feature importance for the loaded model")
-        st.bar_chart(pd.Series(model.feature_importances_, index=features).sort_values(ascending=False))
+        st.bar_chart(
+            pd.Series(model.feature_importances_, index=features).sort_values(
+                ascending=False
+            )
+        )
 
 with tab_info:
     st.subheader("Crop Information")
@@ -264,30 +475,56 @@ with tab_info:
     }
     selected = st.selectbox("Select a crop", sorted(descriptions))
     st.info(descriptions[selected])
-    st.caption("These are general descriptions, not personalized cultivation instructions. Verify local farming decisions with an agricultural expert or official regional guidance.")
+    st.caption(
+        "These are general descriptions, not personalized cultivation instructions. "
+        "Verify local farming decisions with an agricultural expert or official regional guidance."
+    )
 
 with tab_history:
     st.subheader("Prediction History")
     if st.session_state.history:
         rows = []
         for item in st.session_state.history:
-            row = {"Timestamp": item["timestamp"], "Predicted crop": item["prediction"],
-                   "Top model score (%)": round(item["score"], 2) if item["score"] is not None else "N/A"}
+            row = {
+                "Timestamp": item["timestamp"],
+                "Predicted crop": item["prediction"],
+                "Top model score (%)": (
+                    round(item["score"], 2) if item["score"] is not None else "N/A"
+                ),
+            }
             row.update(item["inputs"])
             rows.append(row)
         history_df = pd.DataFrame(rows)
         st.dataframe(history_df, use_container_width=True)
-        st.download_button("⬇️ Download history as CSV", history_df.to_csv(index=False).encode("utf-8"),
-                           file_name="crop_prediction_history.csv", mime="text/csv")
+        st.download_button(
+            "⬇️ Download history as CSV",
+            history_df.to_csv(index=False).encode("utf-8"),
+            file_name="crop_prediction_history.csv",
+            mime="text/csv",
+        )
         if st.button("Clear history"):
             st.session_state.history = []
             st.session_state.last_report = None
             if HISTORY_PATH.exists():
                 HISTORY_PATH.unlink()
             st.rerun()
-        st.caption("History is saved to prediction_history.csv and remains available after restarting the app.")
+        st.caption(
+            "History is saved to prediction_history.csv and remains available after restarting the app."
+        )
     else:
-        st.info("No predictions yet. Make a prediction in the Crop Prediction tab to build history.")
+        st.info(
+            "No predictions yet. Make a prediction in the Crop Prediction tab to build history."
+        )
 
 st.markdown("---")
-st.caption("Smart Crop Planner AI • Educational project • Verify farming decisions with reliable local advice.")
+st.markdown(
+    """
+    <div style="text-align:center; padding:16px 10px; border-top:1px solid #d7e5d7; margin-top:10px;">
+        <strong style="color:#174b32; font-size:1rem;">Smart Crop Planner AI</strong><br>
+        <span style="color:#42634d;">Developed by Ashwani Kumari Singh</span><br>
+        <span style="color:#42634d;">BCA Data Science &amp; AI • Shri Ramswaroop Memorial University</span><br>
+        <span style="color:#718575; font-size:0.85rem;">Educational project • Verify farming decisions with reliable local advice.</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
